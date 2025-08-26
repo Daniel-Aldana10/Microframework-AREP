@@ -16,7 +16,14 @@ import java.net.URISyntaxException;
 public class WebApplication {
      public static void main(String[] args) throws IOException, URISyntaxException {
         staticfiles("/webroot");
-        get("/hello", (req, resp) -> "Hello " + req.getValues("name"));
+        get("/hello", (req, resp) -> {
+            String name = req.getValues("name");
+            if (name != null && !name.trim().isEmpty()) {
+                return "Hello " + name;
+            } else {
+                return "Hello World";
+            }
+        });
         get("/pi", (req, resp) -> {
             return String.valueOf(Math.PI); 
         });
