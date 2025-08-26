@@ -1,7 +1,7 @@
 package com.mycompany.arep;
 import static com.mycompany.arep.HttpServer.start;
 import static com.mycompany.arep.HttpServer.get;
-import static com.mycompany.arep.HttpServer.staticFiles;
+import static com.mycompany.arep.HttpServer.staticfiles;
 import java.io.IOException;
 import java.net.URISyntaxException;
 /*
@@ -15,8 +15,8 @@ import java.net.URISyntaxException;
  */
 public class WebApplication {
      public static void main(String[] args) throws IOException, URISyntaxException {
-        staticFiles("/webroot");
-        get("/hello", (req, resp) -> "Hello " + req.getValue("name"));
+        staticfiles("/webroot");
+        get("/hello", (req, resp) -> "Hello " + req.getValues("name"));
         get("/pi", (req, resp) -> {
             return String.valueOf(Math.PI); 
         });

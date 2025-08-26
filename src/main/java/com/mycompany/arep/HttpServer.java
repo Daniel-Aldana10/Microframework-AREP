@@ -14,12 +14,26 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- *
+ * A lightweight HTTP server that provides web framework functionality.
+ * This class implements a web server that can handle REST services, static file serving,
+ * and provides a simple API for registering service endpoints.
  * @author daniel.aldana-b
  */
 public class HttpServer {
+    //Map containing registered REST services mapped by their paths
     public static Map<String, Service> services = new HashMap();
+    // Root directory for serving static files
+    public static String ROOT_DIRECTORY = "target/classes";
 
+    /**
+     * Starts the HTTP server and begins listening for incoming connections.
+     * The server runs continuously, accepting client connections and handling
+     * HTTP requests until manually stopped.
+     * 
+     * @param args command line arguments (not used)
+     * @throws IOException if an I/O error occurs during server operation
+     * @throws URISyntaxException if there's an error parsing request URIs
+     */
     public static void runServer(String[] args) throws IOException, URISyntaxException {
         ServerSocket serverSocket = null;
         try {
@@ -65,9 +79,10 @@ public class HttpServer {
         }
         serverSocket.close();
     }
+    
     /**
      * Handles an incoming HTTP request and generates the appropriate response.
-     *
+     * This method routes requests to the appropriate handler based on the URI path:
      * @param uri    the request URI containing the path and query parameters
      * @param out    the writer to send responses to the client
      * @param socket the client socket used for file streaming
@@ -83,14 +98,20 @@ public class HttpServer {
             String output = greetingService(uri, true);
             out.println(output);
         }
+        // Check for registered REST services
+        else if(uri != null && services.containsKey(uri.getPath())) {
+            String output = invokeService(uri);
+            out.println(output);
+        }
         else{
-            Path directory =  Path.of("src/main/resources", uri.getPath());
+            // Handle static files
+            Path directory = Path.of(ROOT_DIRECTORY, uri.getPath());
             if(Files.isDirectory(directory)){
                 directory = directory.resolve("index.html");
             }
             if(Files.exists(directory)){
-                String output = "HTTP/1.1 200 OK\r\n" + "content-type" + getType(directory) + "\r\n"
-                        +"content-length"+Files.size(directory) + "\r\n\r\n";
+                String output = "HTTP/1.1 200 OK\r\n" + "content-type: " + getType(directory) + "\r\n"
+                        +"content-length: " + Files.size(directory) + "\r\n\r\n";
                 try (OutputStream outputStream = socket.getOutputStream()) {
                     outputStream.write(output.getBytes());
                     Files.copy(directory, outputStream);
@@ -103,8 +124,10 @@ public class HttpServer {
         }
 
     }
+    
     /**
      * Determines the MIME type of a given file based on its extension.
+     * Supports common web file types including HTML, CSS, JavaScript, images, and JSON.
      *
      * @param path the file path whose content type is to be determined
      * @return the MIME type as a string (e.g., "text/html"), or "application/octet-stream" if unknown
@@ -135,8 +158,11 @@ public class HttpServer {
             default -> "application/octet-stream";
         };
     }
+    
     /**
      * Generates an HTTP response with a JSON greeting message.
+     * This is a legacy service method that creates a JSON response with a greeting
+     * and optionally includes the current date.
      *
      * @param uri  the request URI containing the query parameter (?name=value)
      * @param time if true, includes the current date in the response
@@ -157,20 +183,60 @@ public class HttpServer {
         System.out.println(response);
         return response;
     }
+    
+    /**
+     * Registers a REST service endpoint with the specified path.
+     * The service will be invoked when a request is made to the specified path.
+     * 
+     * @param path the URL path for the service (e.g., "/hello", "/api/users")
+     * @param s the service implementation to handle requests to this path
+     */
     public static void get(String path, Service s){
         services.put(path,s);
     }
-    public static void staticFiles(String localFilesPath){}
+    
+    /**
+     * Sets the root directory for serving static files.
+     * The directory path is relative to the target/classes directory.
+     * 
+     * @param localFilesPath the path to the static files directory
+     */
+    public static void staticfiles(String localFilesPath){
+        ROOT_DIRECTORY = "target/classes" + localFilesPath;
+    }
+    
+    /**
+     * Starts the HTTP server.
+     * This is a convenience method that calls runServer().
+     * 
+     * @param args command line arguments passed to runServer()
+     * @throws IOException if an I/O error occurs during server operation
+     * @throws URISyntaxException if there's an error parsing request URIs
+     */
     public static void start(String[] args) throws IOException, URISyntaxException{
         runServer(args);
     }
-    private static String invokeService(URI uri){
-        String key= uri.getPath().substring(4);
+    
+    /**
+     * Invokes a registered REST service for the given URI.
+     * Creates HttpRequest and HttpResponse objects and passes them to the service.
+     * Returns a properly formatted HTTP response string.
+     * 
+     * @param uri the request URI containing the path and query parameters
+     * @return a complete HTTP response string with headers and body, or a 404 error if service not found
+     */
+    public static String invokeService(URI uri){
+        String key = uri.getPath();
         Service s = services.get(key);
-        HttpRequest req = new HttpRequest(uri);
-        HttpResponse res= new HttpResponse();
-        String response = "HTTP/1.1 200 OK \r\n" + "content-type: text/plain; charset=utf-8\r\n"
-                + "\r\n";
-        return s.invoke(req, res);
+        if (s != null) {
+            HttpRequest req = new HttpRequest(uri);
+            HttpResponse res = new HttpResponse();
+            String serviceResponse = s.invoke(req, res);
+            return "HTTP/1.1 " + res.getStatusCode() + " " + res.getStatusMessage() + "\r\n" 
+                   + "content-type: " + res.getContentType() + "\r\n"
+                   + "\r\n" + serviceResponse;
+        }
+        return "HTTP/1.1 404 Not Found\r\n" + "content-type: text/plain; charset=utf-8\r\n"
+               + "\r\n" + "Service not found";
     }
 }
